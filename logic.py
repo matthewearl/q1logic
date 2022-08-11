@@ -106,6 +106,10 @@ def print_circuit(circuit: Circuit):
     print()
 
 
+def connect(gate: Gate, input_: GateInput):
+    gate.outputs.append(input_)
+
+
 def half_adder():
     in_gate1 = ConstantGate('in1', (0, 0), 0)
     in_gate2 = ConstantGate('in2', (2, 0), 0)
@@ -115,11 +119,17 @@ def half_adder():
     gate4 = NandGate('n4', (1, 3))
     gate5 = NandGate('n5', (3, 3))
 
-    in_gate1.outputs.extend([gate1.inputs[0], gate2.inputs[0]])
-    in_gate2.outputs.extend([gate1.inputs[1], gate3.inputs[1]])
-    gate1.outputs.extend([gate2.inputs[1], gate3.inputs[0], gate5.inputs[0], gate5.inputs[1]])
-    gate2.outputs.append(gate4.inputs[0])
-    gate3.outputs.append(gate4.inputs[1])
+
+    connect(in_gate1, gate1.inputs[0])
+    connect(in_gate1, gate2.inputs[0])
+    connect(in_gate2, gate1.inputs[1])
+    connect(in_gate2, gate3.inputs[1])
+    connect(gate1, gate2.inputs[1])
+    connect(gate1, gate3.inputs[0])
+    connect(gate1, gate5.inputs[0])
+    connect(gate1, gate5.inputs[1])
+    connect(gate2, gate4.inputs[0])
+    connect(gate3, gate4.inputs[1])
 
     circuit = [
         in_gate1, in_gate2, gate1, gate2, gate3, gate4, gate5
@@ -128,8 +138,52 @@ def half_adder():
     return [in_gate1, in_gate2], [gate4, gate5], circuit
 
 
+def full_adder():
+    in_gate1 = ConstantGate('in1', (0, 0), 0)
+    in_gate2 = ConstantGate('in2', (2, 0), 0)
+    in_gate3 = ConstantGate('in3', (3, 0), 0)
+    gate1 = NandGate('n1', (1, 1))
+    gate2 = NandGate('n2', (0, 2))
+    gate3 = NandGate('n3', (2, 2))
+    gate4 = NandGate('n4', (1, 3))
+    gate5 = NandGate('n5', (1, 4))
+    gate6 = NandGate('n6', (0, 5))
+    gate7 = NandGate('n7', (2, 5))
+    gate8 = NandGate('n8', (1, 6))
+    gate9 = NandGate('n9', (3, 5))
+
+    connect(in_gate1, gate1.inputs[0])
+    connect(in_gate1, gate2.inputs[0])
+    connect(in_gate2, gate1.inputs[1])
+    connect(in_gate2, gate3.inputs[1])
+    connect(gate1, gate2.inputs[1])
+    connect(gate1, gate3.inputs[0])
+    connect(gate2, gate4.inputs[0])
+    connect(gate3, gate4.inputs[1])
+
+    connect(in_gate3, gate5.inputs[1])
+    connect(in_gate3, gate7.inputs[1])
+    connect(gate4, gate5.inputs[0])
+    connect(gate4, gate6.inputs[0])
+
+    connect(gate5, gate6.inputs[1])
+    connect(gate5, gate7.inputs[0])
+    connect(gate6, gate8.inputs[0])
+    connect(gate7, gate8.inputs[1])
+
+    connect(gate5, gate9.inputs[1])
+    connect(gate1, gate9.inputs[1])
+
+    circuit = [
+        in_gate1, in_gate2, in_gate3,
+        gate1, gate2, gate3, gate4, gate5, gate6, gate7, gate8, gate9
+    ]
+
+    return [in_gate1, in_gate2, in_gate3], [gate8, gate9], circuit
+
+
 if __name__ == "__main__":
-    in_gates, out_gates, circuit = half_adder()
+    in_gates, out_gates, circuit = full_adder()
 
     # Print a truth table
     for in_values in itertools.product([False, True], repeat=len(in_gates)):
