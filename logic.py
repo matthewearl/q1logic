@@ -5,10 +5,13 @@ import dataclasses
 import itertools
 from typing import Sequence
 
+import graphviz
+
 
 @dataclasses.dataclass
 class GateInput:
     gate: Gate
+    input_num: int
     state: bool = False
 
 
@@ -22,7 +25,7 @@ class Gate:
     def __init__(self, label, coords, num_inputs=2):
         self.label = label
         self.outputs = []
-        self.inputs = [GateInput(self) for _ in range(num_inputs)]
+        self.inputs = [GateInput(self, input_num) for input_num in range(num_inputs)]
         self.coords = coords
 
     def get_output_state(self):
@@ -150,7 +153,7 @@ def full_adder():
     gate6 = NandGate('n6', (0, 5))
     gate7 = NandGate('n7', (2, 5))
     gate8 = NandGate('n8', (1, 6))
-    gate9 = NandGate('n9', (3, 5))
+    gate9 = NandGate('n9', (3, 6))
 
     connect(in_gate1, gate1.inputs[0])
     connect(in_gate1, gate2.inputs[0])
@@ -171,7 +174,7 @@ def full_adder():
     connect(gate6, gate8.inputs[0])
     connect(gate7, gate8.inputs[1])
 
-    connect(gate5, gate9.inputs[1])
+    connect(gate5, gate9.inputs[0])
     connect(gate1, gate9.inputs[1])
 
     circuit = [
@@ -182,8 +185,20 @@ def full_adder():
     return [in_gate1, in_gate2, in_gate3], [gate8, gate9], circuit
 
 
+def circuit_to_dot(circuit):
+    dot = graphviz.Digraph('circuit')
+    for gate in circuit:
+        dot.node(gate.label)
+        for input_ in gate.outputs:
+            dot.edge(gate.label, input_.gate.label, str(input_.input_num))
+    print(dot.source)
+    dot.render()
+
+
 if __name__ == "__main__":
     in_gates, out_gates, circuit = full_adder()
+
+    circuit_to_dot(circuit)
 
     # Print a truth table
     for in_values in itertools.product([False, True], repeat=len(in_gates)):
@@ -191,3 +206,4 @@ if __name__ == "__main__":
             in_gate.output_state = in_value
         converge(circuit)
         print_circuit(circuit)
+
