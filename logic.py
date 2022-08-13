@@ -40,7 +40,6 @@ class Gate:
         for input_ in self.outputs:
             if input_.state != output_state:
                 changed = True
-                #print(f"{self.label} -> {input_.gate.label} = {output_state}")
                 input_.state = output_state
         return changed
 
@@ -52,6 +51,9 @@ class Gate:
             + self.get_name()
             + "(" + "".join("01"[input_.state] for input_ in self.inputs) + ")"
         )
+
+    def add_output(self, input_: GateInput):
+        self.outputs.append(input_)
 
     def __eq__(self, other):
         return id(self) == id(other)
@@ -77,6 +79,25 @@ class ConstantGate(Gate):
 
     def get_name(self):
         return "in"
+
+
+class DummyGate:
+    """A gate that will be later replaced with a real gate.
+
+    Use for implementing non-DAG circuits with the functional interface
+
+    """
+    outputs: List[GateInput]    # Inputs connected to this gate's output
+
+    def __init__(self):
+        self.outputs = []
+
+    def add_output(self, input_: GateInput):
+        self.outputs.append(input_)
+
+    def replace(self, gate: Gate):
+        for input_ in self.outputs:
+            gate.add_output(input_)
 
 
 def nand(*input_gates, label='nand', coords=None):
@@ -127,7 +148,7 @@ def print_circuit(circuit: Circuit):
 
 
 def connect(gate: Gate, input_: GateInput):
-    gate.outputs.append(input_)
+    gate.add_output(input_)
 
 
 def get_circuit(start_gates):
@@ -168,6 +189,19 @@ def full_adder():
     return [c1, c2, c3], [n8, n9], get_circuit([c1, c2, c3])
 
 
+def flip_flop():
+    c1 = constant(label='~S')
+    c2 = constant(label='~R')
+
+    dummy = DummyGate()
+    n1 = nand(c1, dummy, label='Q')
+    n2 = nand(n1, c2, label='~Q')
+    dummy.replace(n2)
+
+    return [c1, c2], [n1, n2], get_circuit([c1, c2])
+
+
+
 def circuit_to_dot(circuit):
     dot = graphviz.Digraph('circuit')
     ids = {gate: f'g{i}' for i, gate in enumerate(circuit)}
@@ -179,20 +213,35 @@ def circuit_to_dot(circuit):
     dot.render()
 
 
-if __name__ == "__main__":
-    in_gates, out_gates, circuit = full_adder()
+def print_output_states(gates):
+    print(','.join(
+        f'{gate.label}={"01"[gate.get_output_state()]}'
+            for gate in gates
+    ))
 
-    circuit_to_dot(circuit)
 
-    # Print a truth table
+def print_truth_table(in_gates, out_gates, circuit):
     for in_values in itertools.product([False, True], repeat=len(in_gates)):
         for in_gate, in_value in zip(in_gates, in_values):
             in_gate.output_state = in_value
         converge(circuit)
+        print_output_states(in_gates + out_gates)
 
-        print(','.join(
-            f'{gate.label}={"01"[gate.get_output_state()]}'
-                for gates in [in_gates, out_gates]
-                for gate in gates
-        ))
 
+if __name__ == "__main__":
+    in_gates, out_gates, circuit = flip_flop()
+
+    circuit_to_dot(circuit)
+
+    in_gates[0].output_state = True
+    in_gates[1].output_state = True
+    converge(circuit)
+    print_output_states(in_gates + out_gates)
+    for iter_num in range(6):
+        in_gates[iter_num % 2].output_state = False
+        converge(circuit)
+        print_output_states(in_gates + out_gates)
+
+        in_gates[iter_num % 2].output_state = True
+        converge(circuit)
+        print_output_states(in_gates + out_gates)
