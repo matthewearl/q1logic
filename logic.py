@@ -15,7 +15,7 @@ class GateInput:
     state: bool = False
 
 
-@dataclasses.dataclass(init=False)
+@dataclasses.dataclass(init=False, eq=False)
 class Gate:
     label: str
     outputs: List[GateInput]    # Inputs connected to this gate's output
@@ -53,6 +53,12 @@ class Gate:
             + "(" + "".join("01"[input_.state] for input_ in self.inputs) + ")"
         )
 
+    def __eq__(self, other):
+        return id(self) == id(other)
+
+    def __hash__(self):
+        return id(self)
+
 
 class NandGate(Gate):
     def get_name(self):
@@ -62,7 +68,7 @@ class NandGate(Gate):
         return not all(input_.state for input_ in self.inputs)
 
 
-@dataclasses.dataclass(init=False)
+@dataclasses.dataclass(init=False, eq=False)
 class ConstantGate(Gate):
     output_state: bool = dataclasses.field(default=True, init=False)
 
@@ -71,6 +77,17 @@ class ConstantGate(Gate):
 
     def get_name(self):
         return "in"
+
+
+def nand(*input_gates, label='nand', coords=None):
+    gate = NandGate(label, coords, len(input_gates))
+    for from_gate, gate_input in zip(input_gates, gate.inputs):
+        connect(from_gate, gate_input)
+    return gate
+
+
+def constant(*, label='constant', coords=None):
+    return ConstantGate(label, coords, 0)
 
 
 Circuit = Sequence[Gate]
@@ -101,7 +118,7 @@ def print_circuit(circuit: Circuit):
         print('\n' * (y - last_y))
         last_x = 0
         for gate in y_to_gates[y]:
-            x = gate.coords[0] * 10
+            x = gate.coords[0] * 15
             gate_str = str(gate)
             print(' ' * (x - last_x) + gate_str, end='')
             last_x = x + len(gate_str)
@@ -113,84 +130,51 @@ def connect(gate: Gate, input_: GateInput):
     gate.outputs.append(input_)
 
 
+def get_circuit(start_gates):
+    prev_out = set()
+    out = set(start_gates)
+
+    while prev_out != out:
+        next_out = set(out)
+        for gate in out:
+            for input_ in gate.outputs:
+                if input_.gate not in out:
+                    next_out.add(input_.gate)
+        prev_out, out = out, next_out
+
+    return out
+
+
 def half_adder():
-    in_gate1 = ConstantGate('in1', (0, 0), 0)
-    in_gate2 = ConstantGate('in2', (2, 0), 0)
-    gate1 = NandGate('n1', (1, 1))
-    gate2 = NandGate('n2', (0, 2))
-    gate3 = NandGate('n3', (2, 2))
-    gate4 = NandGate('n4', (1, 3))
-    gate5 = NandGate('n5', (3, 3))
-
-
-    connect(in_gate1, gate1.inputs[0])
-    connect(in_gate1, gate2.inputs[0])
-    connect(in_gate2, gate1.inputs[1])
-    connect(in_gate2, gate3.inputs[1])
-    connect(gate1, gate2.inputs[1])
-    connect(gate1, gate3.inputs[0])
-    connect(gate1, gate5.inputs[0])
-    connect(gate1, gate5.inputs[1])
-    connect(gate2, gate4.inputs[0])
-    connect(gate3, gate4.inputs[1])
-
-    circuit = [
-        in_gate1, in_gate2, gate1, gate2, gate3, gate4, gate5
-    ]
-
-    return [in_gate1, in_gate2], [gate4, gate5], circuit
+    c1 = constant(label='in1')
+    c2 = constant(label='in2')
+    n1 = nand(c1, c2)
+    n4 = nand(nand(c1, n1), nand(n1, c2), label='out1')
+    n5 = nand(n1, label='out2')
+    return [c1, c2], [n4, n5], get_circuit([c1, c2])
 
 
 def full_adder():
-    in_gate1 = ConstantGate('in1', (0, 0), 0)
-    in_gate2 = ConstantGate('in2', (2, 0), 0)
-    in_gate3 = ConstantGate('in3', (3, 0), 0)
-    gate1 = NandGate('n1', (1, 1))
-    gate2 = NandGate('n2', (0, 2))
-    gate3 = NandGate('n3', (2, 2))
-    gate4 = NandGate('n4', (1, 3))
-    gate5 = NandGate('n5', (1, 4))
-    gate6 = NandGate('n6', (0, 5))
-    gate7 = NandGate('n7', (2, 5))
-    gate8 = NandGate('n8', (1, 6))
-    gate9 = NandGate('n9', (3, 6))
+    c1 = constant(label='in1')
+    c2 = constant(label='in2')
+    c3 = constant(label='in3')
 
-    connect(in_gate1, gate1.inputs[0])
-    connect(in_gate1, gate2.inputs[0])
-    connect(in_gate2, gate1.inputs[1])
-    connect(in_gate2, gate3.inputs[1])
-    connect(gate1, gate2.inputs[1])
-    connect(gate1, gate3.inputs[0])
-    connect(gate2, gate4.inputs[0])
-    connect(gate3, gate4.inputs[1])
+    n1 = nand(c1, c2)
+    n4 = nand(nand(c1, n1), nand(n1, c2))
+    n5 = nand(n4, c3)
+    n8 = nand(nand(n4, n5), nand(n5, c3))
+    n9 = nand(n1, n5)
 
-    connect(in_gate3, gate5.inputs[1])
-    connect(in_gate3, gate7.inputs[1])
-    connect(gate4, gate5.inputs[0])
-    connect(gate4, gate6.inputs[0])
-
-    connect(gate5, gate6.inputs[1])
-    connect(gate5, gate7.inputs[0])
-    connect(gate6, gate8.inputs[0])
-    connect(gate7, gate8.inputs[1])
-
-    connect(gate5, gate9.inputs[0])
-    connect(gate1, gate9.inputs[1])
-
-    circuit = [
-        in_gate1, in_gate2, in_gate3,
-        gate1, gate2, gate3, gate4, gate5, gate6, gate7, gate8, gate9
-    ]
-
-    return [in_gate1, in_gate2, in_gate3], [gate8, gate9], circuit
+    return [c1, c2, c3], [n8, n9], get_circuit([c1, c2, c3])
 
 
 def circuit_to_dot(circuit):
     dot = graphviz.Digraph('circuit')
+    ids = {gate: f'g{i}' for i, gate in enumerate(circuit)}
     for gate in circuit:
-        dot.node(gate.label)
+        dot.node(ids[gate], gate.label)
         for input_ in gate.outputs:
-            dot.edge(gate.label, input_.gate.label, str(input_.input_num))
+            dot.edge(ids[gate], ids[input_.gate], str(input_.input_num))
     print(dot.source)
     dot.render()
 
@@ -205,5 +189,10 @@ if __name__ == "__main__":
         for in_gate, in_value in zip(in_gates, in_values):
             in_gate.output_state = in_value
         converge(circuit)
-        print_circuit(circuit)
+
+        print(','.join(
+            f'{gate.label}={"01"[gate.get_output_state()]}'
+                for gates in [in_gates, out_gates]
+                for gate in gates
+        ))
 
