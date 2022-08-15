@@ -63,11 +63,17 @@ class Gate:
 
 
 class NandGate(Gate):
+    def __init__(self, label, coords, num_inputs=2, *, inverted_inputs=()):
+        super().__init__(label, coords, num_inputs)
+        self._inverted = [input_num in inverted_inputs
+                          for input_num in range(num_inputs)]
+
     def get_name(self):
         return "nand"
 
     def get_output_state(self):
-        return not all(input_.state for input_ in self.inputs)
+        return not all(input_.state != inv
+                       for input_, inv in zip(self.inputs, self._inverted))
 
 
 @dataclasses.dataclass(init=False, eq=False)
@@ -100,8 +106,9 @@ class DummyGate:
             gate.add_output(input_)
 
 
-def nand(*input_gates, label='nand', coords=None):
-    gate = NandGate(label, coords, len(input_gates))
+def nand(*input_gates, label='nand', coords=None, inverted_inputs=()):
+    gate = NandGate(label, coords, len(input_gates),
+                    inverted_inputs=inverted_inputs)
     for from_gate, gate_input in zip(input_gates, gate.inputs):
         connect(from_gate, gate_input)
     return gate
