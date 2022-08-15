@@ -71,6 +71,24 @@ def convolve2(inputs):
     return outputs
 
 
+def gol_step(inputs):
+    """Apply a game-of-life step to an input grid"""
+    counts = convolve2(convolve1(inputs))
+    outputs = []
+    for count_row, input_row in zip(counts, inputs):
+        output_row = []
+        for count, live in zip(count_row, input_row):
+            count = count[:3]   # Do not need the most significant bit
+            not_three = nand(*count, inverted_inputs=(2,))
+            not_four = nand(*count, inverted_inputs=(0, 1))
+
+            next_live = nand(not_three,
+                             nand(not_four, live, inverted_inputs=(0,)))
+            output_row.append(next_live)
+        outputs.append(output_row)
+    return outputs
+
+
 if __name__ == "__main__":
     num1 = [constant(label=f"num1_{i}") for i in range(2)]
     num2 = [constant(label=f"num2_{i}") for i in range(3)]

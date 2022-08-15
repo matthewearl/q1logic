@@ -1,7 +1,7 @@
 import itertools
 
 from . import logic
-from .gol import ripple_carry_add, convolve1, convolve2
+from .gol import ripple_carry_add, convolve1, convolve2, gol_step
 from .logic import constant
 
 
@@ -88,3 +88,41 @@ def test_convolve():
 
     assert output_values == expected
 
+
+def test_gol_step():
+    inputs = [
+        [
+            constant(label=f"in_{i},{j}")
+            for j in range(5)
+        ]
+        for i in range(5)
+    ]
+    input_values = [
+        [0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0],
+        [1, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0]
+    ]
+    for input_row, value_row in zip(inputs, input_values):
+        for input_, value in zip(input_row, value_row):
+            input_.output_state = bool(value)
+    in_gates = [gate for input_row in inputs for gate in input_row]
+
+    outputs = gol_step(inputs)
+    out_gates = [gate for output_row in outputs for gate in output_row]
+    circuit = logic.get_circuit(in_gates, out_gates)
+    logic.converge(circuit)
+
+    expected = [
+        [0, 0, 0, 0, 0],
+        [1, 0, 1, 0, 0],
+        [0, 1, 1, 0, 0],
+        [0, 1, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+    ]
+    output_values = [
+        [int(gate.get_output_state()) for gate in output_row]
+        for output_row in outputs
+    ]
+    assert output_values == expected
