@@ -151,19 +151,41 @@ def connect(gate: Gate, input_: GateInput):
     gate.add_output(input_)
 
 
-def get_circuit(start_gates):
+def _flood_fill(start_gates, edges):
     prev_out = set()
     out = set(start_gates)
 
     while prev_out != out:
         next_out = set(out)
-        for gate in out:
-            for input_ in gate.outputs:
-                if input_.gate not in out:
-                    next_out.add(input_.gate)
+        for gate, gate2 in edges:
+            if gate in out and gate2 not in out:
+                next_out.add(gate2)
         prev_out, out = out, next_out
 
     return out
+
+
+def get_circuit(in_gates, out_gates):
+    # Find gates that are influenced by input gates.
+
+    prev_circuit = set()
+    circuit = set(in_gates)
+    while prev_circuit != circuit:
+        next_circuit = set(circuit)
+        for gate in circuit:
+            for input_ in gate.outputs:
+                if input_.gate not in circuit:
+                    next_circuit.add(input_.gate)
+        prev_circuit, circuit = circuit, next_circuit
+
+    # Restrict to gates that influence output gates.
+    reversed_edges = []
+    for gate in circuit:
+        for input_ in gate.outputs:
+            reversed_edges.append((input_.gate, gate))
+    circuit &= _flood_fill(out_gates, reversed_edges)
+
+    return circuit
 
 
 def half_adder():

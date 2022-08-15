@@ -14,7 +14,7 @@ def test_ripple_carry_adder():
     num2 = [constant(label=f"num2_{i}") for i in range(3)]
     sum_ = ripple_carry_add(num1, num2)
     in_gates = num1 + num2
-    circuit = logic.get_circuit(in_gates)
+    circuit = logic.get_circuit(in_gates, sum_)
 
     for in_values in itertools.product([False, True], repeat=len(in_gates)):
         for in_gate, in_value in zip(in_gates, in_values):
@@ -49,8 +49,9 @@ def test_convolve():
 
     # 1-D convolve
     outputs = convolve1(inputs)
-    out_gates = [gate for output_row in outputs for gate in output_row]
-    circuit = logic.get_circuit(in_gates)
+    out_gates = [gate for output_row in outputs for num in output_row
+                 for gate in num]
+    circuit = logic.get_circuit(in_gates, out_gates)
     logic.converge(circuit)
 
     output_values = [
@@ -69,8 +70,9 @@ def test_convolve():
 
     # 2-D convolve
     outputs = convolve2(outputs)
-    out_gates = [gate for output_row in outputs for gate in output_row]
-    circuit = logic.get_circuit(in_gates)
+    out_gates = [gate for output_row in outputs for num in output_row
+                 for gate in num[:3]]
+    circuit = logic.get_circuit(in_gates, out_gates)
     logic.converge(circuit)
 
     expected = [
