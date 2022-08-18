@@ -45,7 +45,7 @@ class Brush:
             f.write(f'// {self.comment}\n')
         f.write('{\n')
         for plane in planes:
-            f.write(' '.join('(' + ' '.join(str(x) for x in vert) + ')'
+            f.write(' '.join('( ' + ' '.join(str(x) for x in vert) + ' )'
                                for vert in plane))
             f.write(f' {self.texture} 0 0 0 1 1\n')
         f.write('}\n')
@@ -104,6 +104,47 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
         ],
         "sled"
     )
+    target = Entity(
+        {
+            'classname': 'func_button',
+            'angle': 90,
+            'lip': 4,
+            'health': 2,
+            'target': name,
+        },
+        [
+            Brush(np.array([0, 12, 0]) + origin,
+                  np.array([128, 16, 128]) + origin,
+                  "cop1_1", "front"),
+        ],
+        "target"
+    )
+    jump = Entity(
+        {
+            'classname': 'trigger_monsterjump',
+            'angle': -2,
+            'height': 32,
+            'speed': 0,
+        },
+        [
+            Brush(np.array([48, 16, 32]) + origin,
+                  np.array([80, 128, 64]) + origin,
+                  "cop1_1"),
+        ]
+    )
+    door = Entity(
+        {
+            'classname': 'func_door',
+            'angle': -1,
+            'lip': 0,
+            'wait': 0.5,
+        },
+        [
+            Brush(np.array([60, 128, 48]) + origin,
+                  np.array([68, 136, 80]) + origin,
+                  "cop1_1"),
+        ]
+    )
     monster = Entity(
             {
                 'classname': 'monster_army',
@@ -112,10 +153,11 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             },
             [],
     )
-    return sled, monster
+    return [sled, target, jump, door, monster]
 
 
 def create_map_entrypoint():
+    player_origin = np.array([0, -128, 24])
     entities = [
         Entity(
             {
@@ -123,8 +165,20 @@ def create_map_entrypoint():
                 'wad': '../wads/wizard.wad',
                 'angle': 0,
             },
+            [
+                Brush(np.array([-32, -32, -40]) + player_origin,
+                      np.array([32, 32, -24]) + player_origin,
+                      "cop1_1", "platform"),
+            ]
+        ),
+        Entity(
+            {
+                'classname': 'info_player_start',
+                'angle': 90,
+                'origin': _encode_vec(player_origin)
+            },
             []
-        )
+        ),
     ]
     entities.extend(create_input(np.array([0, 0, 0]), "input1", "x"))
 
