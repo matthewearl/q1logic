@@ -156,12 +156,30 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
     return [sled, target, jump, door, monster]
 
 
+def create_input_array(grid_origin, grid_size):
+    entities = []
+    input_spacing = 128 + 8
+    for x in range(grid_size):
+        for y in range(grid_size):
+            input_origin = np.array([input_spacing * x,
+                                     0,
+                                     input_spacing * y]) + grid_origin
+            entities.extend(create_input(input_origin, f"input_{x}_{y}", "x"))
+
+    brushes = [
+        Brush(np.array([0, 4, 0]) + grid_origin,
+              np.array([grid_size * input_spacing, 8,
+                        grid_size * input_spacing]) + grid_origin,
+              "*water0", "input curtain")
+    ]
+    return entities, brushes
+
+
 def create_map_entrypoint():
     grid_size = 5
-    input_spacing = 128 + 8
-    player_origin = np.array([input_spacing / 2,
-                              -128,
-                              input_spacing / 2]) * grid_size
+    player_origin = np.array([68, -128, 68]) * grid_size
+    input_entities, input_brushes = create_input_array(np.array([0, 0, 0]),
+                                                       grid_size)
     entities = [
         Entity(
             {
@@ -173,11 +191,7 @@ def create_map_entrypoint():
                 Brush(np.array([-32, -32, -40]) + player_origin,
                       np.array([32, 32, -24]) + player_origin,
                       "cop1_1", "platform"),
-                Brush(np.array([0, 4, 0]),
-                      np.array([grid_size * input_spacing, 8,
-                                grid_size * input_spacing]),
-                      "*water0", "input curtain")
-            ]
+            ] + input_brushes
         ),
         Entity(
             {
@@ -187,12 +201,7 @@ def create_map_entrypoint():
             },
             []
         ),
-    ]
-
-    for x in range(grid_size):
-        for y in range(grid_size):
-            input_origin = np.array([input_spacing * x, 0, input_spacing * y])
-            entities.extend(create_input(input_origin, f"input_{x}_{y}", "x"))
+    ] + input_entities
 
     with open('test.map', 'w') as f:
         Map(entities).write(f)
