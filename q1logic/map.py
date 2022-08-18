@@ -142,7 +142,7 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
         [
             Brush(np.array([60, 128, 48]) + origin,
                   np.array([68, 136, 80]) + origin,
-                  "cop1_1"),
+                  "*lava1"),
         ]
     )
     monster = Entity(
@@ -184,7 +184,7 @@ def create_map_entrypoint():
         Entity(
             {
                 'classname': 'worldspawn',
-                'wad': '../wads/wizard.wad;../wads/base.wad',
+                'wad': '../wads/wizard.wad;../wads/start.wad;../wads/base.wad',
                 'angle': 0,
             },
             [
