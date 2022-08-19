@@ -104,7 +104,7 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
         ],
         "sled"
     )
-    target = Entity(
+    target_ent = Entity(
         {
             'classname': 'func_button',
             'angle': 90,
@@ -138,6 +138,7 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             'angle': -1,
             'lip': 0,
             'wait': 0.5,
+            'target': target,
         },
         [
             Brush(np.array([60, 128, 48]) + origin,
@@ -153,18 +154,38 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             },
             [],
     )
-    return [sled, target, jump, door, monster]
+    return [sled, target_ent, jump, door, monster]
 
 
-def create_input_array(grid_origin, grid_size):
+def create_output(origin: np.ndarray, name: str):
+    return [Entity(
+        {
+            'classname': 'func_door',
+            'angle': 90,
+            'lip': 0,
+            'wait': 1.1,
+            'targetname': name,
+        },
+        [
+            Brush(np.array([0, 0, 0]) + origin,
+                  np.array([128, 128, 128]) + origin,
+                  "cop1_1"),
+        ],
+        "output"
+    )]
+
+
+def create_input_array(grid_origin, grid_size, targets: List[List[str]]):
     entities = []
     input_spacing = 128 + 8
-    for x in range(grid_size):
-        for y in range(grid_size):
+    for target_row, y in zip(targets, range(grid_size)):
+        for target, x in zip(target_row, range(grid_size)):
             input_origin = np.array([input_spacing * x,
                                      0,
                                      input_spacing * y]) + grid_origin
-            entities.extend(create_input(input_origin, f"input_{x}_{y}", "x"))
+            entities.extend(create_input(input_origin,
+                                         f"input_{x}_{y}",
+                                         target))
 
     brushes = [
         Brush(np.array([0, 4, 0]) + grid_origin,
@@ -175,11 +196,40 @@ def create_input_array(grid_origin, grid_size):
     return entities, brushes
 
 
+def create_output_array(grid_origin, grid_size):
+    entities = []
+    input_spacing = 128 + 8
+    for x in range(grid_size):
+        for y in range(grid_size):
+            input_origin = np.array([input_spacing * x,
+                                     0,
+                                     input_spacing * y]) + grid_origin
+            entities.extend(create_output(input_origin, f"output_{x}_{y}"))
+
+    brushes = [
+        Brush(np.array([0, 4, 0]) + grid_origin,
+              np.array([grid_size * input_spacing, 8,
+                        grid_size * input_spacing]) + grid_origin,
+              "*water0", "output curtain")
+    ]
+    return entities, brushes
+
+
 def create_map_entrypoint():
     grid_size = 5
-    player_origin = np.array([68, -128, 68]) * grid_size
+    player_origin = np.array([136 * (grid_size + 0.5),
+                              -128 * grid_size,
+                              68 * grid_size])
+
+    targets = [
+        [f"output_{x}_{y}" for x in range(grid_size)]
+        for y in range(grid_size)
+    ]
     input_entities, input_brushes = create_input_array(np.array([0, 0, 0]),
-                                                       grid_size)
+                                                       grid_size, targets)
+    output_entities, output_brushes = create_output_array(
+        np.array([136 * (grid_size + 1), 0, 0]), grid_size
+    )
     entities = [
         Entity(
             {
@@ -191,7 +241,7 @@ def create_map_entrypoint():
                 Brush(np.array([-32, -32, -40]) + player_origin,
                       np.array([32, 32, -24]) + player_origin,
                       "cop1_1", "platform"),
-            ] + input_brushes
+            ] + input_brushes + output_brushes
         ),
         Entity(
             {
@@ -201,7 +251,7 @@ def create_map_entrypoint():
             },
             []
         ),
-    ] + input_entities
+    ] + input_entities + output_entities
 
     with open('test.map', 'w') as f:
         Map(entities).write(f)
