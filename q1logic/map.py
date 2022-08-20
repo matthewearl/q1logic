@@ -196,6 +196,78 @@ def create_input_array(grid_origin, grid_size, targets: List[List[str]]):
     return entities, brushes
 
 
+def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
+    entities = []
+    for input_num, input_name in enumerate(input_names):
+        if input_num in inverted_inputs:
+            angle = -1
+            z = 0
+        else:
+            angle = -2
+            z = 64
+        input_origin = np.array([input_num * 80, 0, z]) + origin
+        entities.extend([
+            # platform
+            Entity(
+                {
+                    'classname': 'func_door',
+                    'angle': angle,
+                    'lip': 0,
+                    'speed': 500,
+                    'targetname': input_name
+                },
+                [Brush(input_origin, input_origin + 64, "cop1_1")]
+            ),
+            # monster
+            Entity(
+                {
+                    'classname': 'monster_army',
+                    'origin': _encode_vec(np.array([32, 32, 88])
+                                          + input_origin),
+                    'angle': 90,
+                },
+                [],
+            )
+        ])
+
+    monster_min = 16
+    monster_max = 80 * (len(input_names) - 1) + 48
+
+    entities.extend([
+        # output door
+        Entity(
+            {
+                'classname': 'func_door',
+                'angle': -1,
+                'lip': 0,
+                'target': target,
+                'wait': 0.5,
+            },
+            [
+                Brush(np.array([monster_min, 64, 176]) + origin,
+                      np.array([monster_max, 72, 208]) + origin,
+                      "*lava1")
+            ]
+        ),
+        # jump
+        Entity(
+            {
+                'classname': 'trigger_monsterjump',
+                'angle': -2,
+                'height': 32,
+                'speed': 0,
+            },
+            [
+                Brush(np.array([monster_min, 16, 64]) + origin,
+                      np.array([monster_max, 48, 196]) + origin,
+                      "*lava1")
+            ]
+        )
+    ])
+
+    return entities
+
+
 def create_output_array(grid_origin, grid_size):
     entities = []
     input_spacing = 128 + 8
@@ -230,6 +302,11 @@ def create_map_entrypoint():
     output_entities, output_brushes = create_output_array(
         np.array([136 * (grid_size + 1), 0, 0]), grid_size
     )
+
+    nand_entities = create_nand_gate(["output_0_0", "output_0_1"],
+                                     "x", np.array([-512, 0, 0]),
+                                     inverted_inputs=(0,))
+
     entities = [
         Entity(
             {
@@ -251,7 +328,7 @@ def create_map_entrypoint():
             },
             []
         ),
-    ] + input_entities + output_entities
+    ] + input_entities + output_entities + nand_entities
 
     with open('test.map', 'w') as f:
         Map(entities).write(f)
