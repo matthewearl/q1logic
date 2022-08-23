@@ -1,9 +1,16 @@
 import dataclasses
+import functools
 import io
+import logging
+import operator
 from typing import Dict, List, Any, Optional
 
 import numpy as np
 
+from . import logic, gol
+
+
+logger = logging.getLogger(__name__)
 
 bbox_min_planes = np.array([
     [[0, 0, 0], [0, 1, 0], [0, 0, 1]],  # x min
@@ -268,15 +275,15 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
     return entities
 
 
-def create_output_array(grid_origin, grid_size):
+def create_output_array(grid_origin, grid_size, names):
     entities = []
     input_spacing = 128 + 8
-    for x in range(grid_size):
-        for y in range(grid_size):
+    for name_row, y in zip(names, range(grid_size)):
+        for name, x in zip(name_row, range(grid_size)):
             input_origin = np.array([input_spacing * x,
                                      0,
                                      input_spacing * y]) + grid_origin
-            entities.extend(create_output(input_origin, f"output_{x}_{y}"))
+            entities.extend(create_output(input_origin, name))
 
     brushes = [
         Brush(np.array([0, 4, 0]) + grid_origin,
@@ -287,25 +294,115 @@ def create_output_array(grid_origin, grid_size):
     return entities, brushes
 
 
+def _reshape_list(l, shape):
+    if len(l) != functools.reduce(operator.mul, shape):
+        raise ValueError(f"List of length {len(l)} cannot be reshaped to "
+                         f"{shape}")
+
+    for size in reversed(shape):
+        l = [l[i:i + size] for i in range(0, len(l), size)]
+    return l
+
+
+def map_from_circuit(inputs, outputs, circuit):
+    input_grid_size = len(inputs)
+    if not all(len(input_row) == input_grid_size for input_row in inputs):
+        raise ValueError("inputs must be square")
+    output_grid_size = len(outputs)
+    if not all(len(output_row) == output_grid_size for output_row in outputs):
+        raise ValueError("outputs must be square")
+
+    gate_ids = {
+        gate: f"gate_{i}" for i, gate in enumerate(circuit)
+    }
+
+    world_brushes = []
+    entities = []
+
+    # Create inputs
+    input_targets = [
+        [gate_ids[in_gate] for in_gate in input_row]
+        for input_row in inputs
+    ]
+    input_entities, input_brushes = create_input_array(np.array([0, 0, 0]),
+                                                       input_grid_size,
+                                                       input_targets)
+    world_brushes.extend(input_brushes)
+    entities.extend(input_entities)
+
+    # Create outputs
+    output_names = [
+        [gate_ids[out_gate] for out_gate in output_row]
+        for output_row in outputs
+    ]
+    output_entities, output_brushes = create_output_array(
+        np.array([136 * (input_grid_size + 1), 0, 0]), output_grid_size,
+        output_names
+    )
+    world_brushes.extend(output_brushes)
+    entities.extend(output_entities)
+
+    # Map from gate inputs to the gates that connect to them.
+    prev_gate = {
+        (input_.gate, input_.input_num): gate
+        for gate in circuit
+        for input_ in gate.outputs
+    }
+
+    # Create nand gates
+    origin = np.array([0, 512, 0])
+    nand_gates = [gate for gate in circuit if isinstance(gate, logic.NandGate)]
+    for gate in nand_gates:
+        input_names = [
+            gate_ids[prev_gate[gate, input_num]]
+            for input_num in range(len(gate.inputs))
+        ]
+
+        nand_entities = create_nand_gate(input_names,
+                                         gate_ids[gate],
+                                         origin,
+                                         inverted_inputs=gate.inverted_inputs)
+        entities.extend(nand_entities)
+
+        origin = origin + np.array([256 * len(input_names), 0, 0])
+        if origin[0] > 8192:
+            origin[0] = 0
+            origin[2] += 256
+
+    # Create the map object
+    world_entity = Entity(
+        {
+            'classname': 'worldspawn',
+            'wad': '../wads/wizard.wad;../wads/start.wad;../wads/base.wad',
+            'angle': 0,
+        },
+        world_brushes
+    )
+    entities.insert(0, world_entity)
+    return world_brushes, entities
+
+
 def create_map_entrypoint():
-    grid_size = 5
+    logging.basicConfig(level=logging.INFO)
+
+    grid_size = 3
     player_origin = np.array([136 * (grid_size + 0.5),
                               -128 * grid_size,
                               68 * grid_size])
 
-    targets = [
-        [f"output_{x}_{y}" for x in range(grid_size)]
-        for y in range(grid_size)
+    inputs = [
+        [logic.constant() for j in range(grid_size)]
+        for i in range(grid_size)
     ]
-    input_entities, input_brushes = create_input_array(np.array([0, 0, 0]),
-                                                       grid_size, targets)
-    output_entities, output_brushes = create_output_array(
-        np.array([136 * (grid_size + 1), 0, 0]), grid_size
-    )
+    in_gates = [gate for input_row in inputs for gate in input_row]
+    outputs = gol.gol_step(inputs)
+    out_gates = [gate for output_row in outputs for gate in output_row]
+    circuit = logic.get_circuit(in_gates, out_gates)
+    logger.info('Number of gates: %s', len(circuit))
 
-    nand_entities = create_nand_gate(["output_0_0", "output_0_1"],
-                                     "x", np.array([-512, 0, 0]),
-                                     inverted_inputs=(0,))
+    circuit_brushes, circuit_entities = map_from_circuit(
+        inputs, outputs, circuit
+    )
 
     entities = [
         Entity(
@@ -318,7 +415,7 @@ def create_map_entrypoint():
                 Brush(np.array([-32, -32, -40]) + player_origin,
                       np.array([32, 32, -24]) + player_origin,
                       "cop1_1", "platform"),
-            ] + input_brushes + output_brushes
+            ] + circuit_brushes
         ),
         Entity(
             {
@@ -328,7 +425,7 @@ def create_map_entrypoint():
             },
             []
         ),
-    ] + input_entities + output_entities + nand_entities
+    ] + circuit_entities
 
     with open('test.map', 'w') as f:
         Map(entities).write(f)

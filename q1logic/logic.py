@@ -65,6 +65,7 @@ class Gate:
 class NandGate(Gate):
     def __init__(self, label, coords, num_inputs=2, *, inverted_inputs=()):
         super().__init__(label, coords, num_inputs)
+        self.inverted_inputs = inverted_inputs
         self._inverted = [input_num in inverted_inputs
                           for input_num in range(num_inputs)]
 
