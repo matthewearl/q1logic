@@ -196,40 +196,44 @@ def get_circuit(in_gates, out_gates):
     return circuit
 
 
-def half_adder():
-    c1 = constant(label='in1')
-    c2 = constant(label='in2')
+def half_adder(c1, c2):
     n1 = nand(c1, c2)
     n4 = nand(nand(c1, n1), nand(n1, c2), label='out1')
     n5 = nand(n1, label='out2')
-    return [c1, c2], [n4, n5], get_circuit([c1, c2])
+    return [n4, n5]
 
 
-def full_adder():
-    c1 = constant(label='in1')
-    c2 = constant(label='in2')
-    c3 = constant(label='in3')
-
+def full_adder(c1, c2, c3):
     n1 = nand(c1, c2)
     n4 = nand(nand(c1, n1), nand(n1, c2))
     n5 = nand(n4, c3)
     n8 = nand(nand(n4, n5), nand(n5, c3))
     n9 = nand(n1, n5)
 
-    return [c1, c2, c3], [n8, n9], get_circuit([c1, c2, c3])
+    return [n8, n9]
 
 
-def flip_flop():
-    c1 = constant(label='~S')
-    c2 = constant(label='~R')
+def ripple_carry_add(num1, num2):
+    assert len(num1) > 0 and len(num2) > 0, "not supported"
 
-    dummy = DummyGate()
-    n1 = nand(c1, dummy, label='Q')
-    n2 = nand(n1, c2, label='~Q')
-    dummy.replace(n2)
+    carry = None
+    out = []
+    min_len = min(len(num1), len(num2))
+    for bit1, bit2 in zip(num1[:min_len], num2[:min_len]):
+        if carry is None:
+            out_bit, carry = half_adder(bit1, bit2)
+        else:
+            out_bit, carry = full_adder(bit1, bit2, carry)
+        out.append(out_bit)
 
-    return [c1, c2], [n1, n2], get_circuit([c1, c2])
+    num = num2 if len(num1) < len(num2) else num1
+    assert carry is not None
+    for bit in num[min_len:]:
+        out_bit, carry = half_adder(carry, bit)
+        out.append(out_bit)
 
+    out.append(carry)
+    return out
 
 
 def circuit_to_dot(circuit):
@@ -243,35 +247,5 @@ def circuit_to_dot(circuit):
     dot.render()
 
 
-def print_output_states(gates):
-    print(','.join(
-        f'{gate.label}={"01"[gate.get_output_state()]}'
-            for gate in gates
-    ))
-
-
-def print_truth_table(in_gates, out_gates, circuit):
-    for in_values in itertools.product([False, True], repeat=len(in_gates)):
-        for in_gate, in_value in zip(in_gates, in_values):
-            in_gate.output_state = in_value
-        converge(circuit)
-        print_output_states(in_gates + out_gates)
-
-
-if __name__ == "__main__":
-    in_gates, out_gates, circuit = flip_flop()
-
-    circuit_to_dot(circuit)
-
-    in_gates[0].output_state = True
-    in_gates[1].output_state = True
-    converge(circuit)
-    print_output_states(in_gates + out_gates)
-    for iter_num in range(6):
-        in_gates[iter_num % 2].output_state = False
-        converge(circuit)
-        print_output_states(in_gates + out_gates)
-
-        in_gates[iter_num % 2].output_state = True
-        converge(circuit)
-        print_output_states(in_gates + out_gates)
+def decode_number(num):
+    return sum(gate.get_output_state() << i for i, gate in enumerate(num))

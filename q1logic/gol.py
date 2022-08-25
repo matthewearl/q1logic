@@ -1,45 +1,5 @@
 from . import logic
-from .logic import nand, constant
-
-
-def half_adder(c1, c2):
-    n1 = nand(c1, c2)
-    n4 = nand(nand(c1, n1), nand(n1, c2), label='out1')
-    n5 = nand(n1, label='out2')
-    return [n4, n5]
-
-
-def full_adder(c1, c2, c3):
-    n1 = nand(c1, c2)
-    n4 = nand(nand(c1, n1), nand(n1, c2))
-    n5 = nand(n4, c3)
-    n8 = nand(nand(n4, n5), nand(n5, c3))
-    n9 = nand(n1, n5)
-
-    return [n8, n9]
-
-
-def ripple_carry_add(num1, num2):
-    assert len(num1) > 0 and len(num2) > 0, "not supported"
-
-    carry = None
-    out = []
-    min_len = min(len(num1), len(num2))
-    for bit1, bit2 in zip(num1[:min_len], num2[:min_len]):
-        if carry is None:
-            out_bit, carry = half_adder(bit1, bit2)
-        else:
-            out_bit, carry = full_adder(bit1, bit2, carry)
-        out.append(out_bit)
-
-    num = num2 if len(num1) < len(num2) else num1
-    assert carry is not None
-    for bit in num[min_len:]:
-        out_bit, carry = half_adder(carry, bit)
-        out.append(out_bit)
-
-    out.append(carry)
-    return out
+from .logic import nand, constant, half_adder, full_adder, ripple_carry_add
 
 
 def convolve1(inputs):

@@ -1,31 +1,8 @@
 import itertools
 
 from . import logic
-from .gol import ripple_carry_add, convolve1, convolve2, gol_step
-from .logic import constant
-
-
-def _decode_number(num):
-    return sum(gate.get_output_state() << i for i, gate in enumerate(num))
-
-
-def test_ripple_carry_adder():
-    num1 = [constant(label=f"num1_{i}") for i in range(2)]
-    num2 = [constant(label=f"num2_{i}") for i in range(3)]
-    sum_ = ripple_carry_add(num1, num2)
-    in_gates = num1 + num2
-    circuit = logic.get_circuit(in_gates, sum_)
-
-    for in_values in itertools.product([False, True], repeat=len(in_gates)):
-        for in_gate, in_value in zip(in_gates, in_values):
-            in_gate.output_state = in_value
-        logic.converge(circuit)
-
-        in_num1 = _decode_number(num1)
-        in_num2 = _decode_number(num2)
-        out_num = _decode_number(sum_)
-
-        assert in_num1 + in_num2 == out_num
+from .gol import convolve1, convolve2, gol_step
+from .logic import constant, decode_number
 
 
 def test_convolve():
@@ -55,7 +32,7 @@ def test_convolve():
     logic.converge(circuit)
 
     output_values = [
-        [_decode_number(num) for num in output_row]
+        [decode_number(num) for num in output_row]
         for output_row in outputs
     ]
 
@@ -82,7 +59,7 @@ def test_convolve():
         [4, 4, 3, 4],
     ]
     output_values = [
-        [_decode_number(num) for num in output_row]
+        [decode_number(num) for num in output_row]
         for output_row in outputs
     ]
 
