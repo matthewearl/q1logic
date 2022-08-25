@@ -385,7 +385,7 @@ def map_from_circuit(inputs, outputs, circuit):
 def create_map_entrypoint():
     logging.basicConfig(level=logging.INFO)
 
-    grid_size = 3
+    grid_size = 5
     player_origin = np.array([136 * (grid_size + 0.5),
                               -128 * grid_size,
                               68 * grid_size])

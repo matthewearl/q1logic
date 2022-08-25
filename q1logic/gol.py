@@ -90,10 +90,35 @@ def gol_step(inputs):
 
 
 if __name__ == "__main__":
-    num1 = [constant(label=f"num1_{i}") for i in range(2)]
-    num2 = [constant(label=f"num2_{i}") for i in range(3)]
+    grid_size = 4
+    inputs = [
+        [
+            constant(label=f"in_{i},{j}")
+            for j in range(grid_size)
+        ]
+        for i in range(grid_size)
+    ]
+    input_values = [
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 0],
+    ]
+    for input_row, value_row in zip(inputs, input_values):
+        for input_, value in zip(input_row, value_row):
+            input_.output_state = bool(value)
+    in_gates = [gate for input_row in inputs for gate in input_row]
 
-    sum_ = ripple_carry_add(num1, num2)
-    circuit = logic.get_circuit(num1 + num2)
+    outputs = gol_step(inputs)
+    out_gates = [gate for output_row in outputs for gate in output_row]
+    circuit = logic.get_circuit(in_gates, out_gates)
+    logic.converge(circuit)
 
-    logic.print_truth_table(num1 + num2, sum_, circuit)
+    output_values = [
+        [int(gate.get_output_state()) for gate in output_row]
+        for output_row in outputs
+    ]
+    print('input')
+    print('\n'.join(''.join('.@'[v] for v in row) for row in input_values))
+    print('output')
+    print('\n'.join(''.join('.@'[v] for v in row) for row in output_values))
