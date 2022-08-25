@@ -236,6 +236,14 @@ def ripple_carry_add(num1, num2):
     return out
 
 
+def mux(select, a, b):
+    """`a` when `select` is zero, otherwise `b`"""
+    return nand(
+        nand(select, a, inverted_inputs=(0,)),
+        nand(select, b),
+    )
+
+
 def circuit_to_dot(circuit):
     dot = graphviz.Digraph('circuit')
     ids = {gate: f'g{i}' for i, gate in enumerate(circuit)}
