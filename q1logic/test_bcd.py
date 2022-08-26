@@ -69,3 +69,29 @@ def test_bcd_ripple_carry_adder():
             sum_val += 1000
 
         assert sum_val == val1 + val2
+
+
+def test_decode_7_segment():
+    expected = [
+       # a  b  c  d  e  f  g
+        [1, 1, 1, 1, 1, 1, 0],  # 0
+        [0, 1, 1, 0, 0, 0, 0],  # 1
+        [1, 1, 0, 1, 1, 0, 1],  # 2
+        [1, 1, 1, 1, 0, 0, 1],  # 3
+        [0, 1, 1, 0, 0, 1, 1],  # 4
+        [1, 0, 1, 1, 0, 1, 1],  # 5
+        [1, 0, 1, 1, 1, 1, 1],  # 6
+        [1, 1, 1, 0, 0, 0, 0],  # 7
+        [1, 1, 1, 1, 1, 1, 1],  # 8
+        [1, 1, 1, 1, 0, 1, 1],  # 9
+    ]
+
+    digit = [logic.constant(label=f"digit_{i}") for i in range(4)]
+    segments = bcd.decode_7_segment(digit)
+    circuit = logic.get_circuit(digit, segments)
+    for val in range(10):
+        _set_digit_constants(digit, val)
+        logic.converge(circuit)
+
+        segment_values = [0 + seg.get_output_state() for seg in segments]
+        assert expected[val] == segment_values

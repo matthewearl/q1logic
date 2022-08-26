@@ -1,3 +1,5 @@
+from textwrap import dedent
+
 from . import logic
 from .logic import nand, ripple_carry_add, mux, half_adder
 
@@ -48,3 +50,74 @@ def bcd_ripple_carry_adder(digits1, digits2):
         sum_digits.append(sum_digit)
 
     return sum_digits, carry
+
+
+def format_7_segment(digit_vals):
+    chars = dedent("""\
+     ---
+    |   |
+     ---
+    |   |
+     ---
+    """)
+    segs = dedent("""\
+     000
+    5   1
+     666
+    4   2
+     333
+    """)
+    assert len(chars) == len(segs)
+
+    out = ''
+    for c1, c2 in zip(chars, segs):
+        if c2.isdigit():
+            if digit_vals[int(c2)]:
+                out = out + c1
+            else:
+                out = out + ' '
+        else:
+            out = out + c1
+    return out
+
+
+def decode_7_segment(digit):
+    D, C, B, A = digit
+
+    t1 = nand(B, D, inverted_inputs=(0, 1))
+    a = nand(nand(B, D), t1, A, C, inverted_inputs=(2, 3))
+    t2 = nand(C, D, inverted_inputs=(0, 1))
+    b = nand(nand(C, D), B, t2)
+    c = nand(B, C, D, inverted_inputs=(0, 2))
+    t3 = nand(C, D, inverted_inputs=(1,))
+    t4 = nand(B, C, inverted_inputs=(0,))
+    t5 = nand(B, C, inverted_inputs=(1,))
+    d = nand(
+        A, t1, t3, t4,
+        nand(D, t5, inverted_inputs=(1,)),
+        inverted_inputs=(0,)
+    )
+    e = nand(t3, t1)
+    f = nand(t2, nand(B, D, inverted_inputs=(1,)), t5, A, inverted_inputs=(3,))
+    g = nand(t3, t5, A, t4, inverted_inputs=(2,))
+
+    return [a, b, c, d, e, f, g]
+
+
+def _set_digit_constants(digit, val):
+    for idx, gate in enumerate(digit):
+        gate.output_state = (val & (1 << idx)) != 0
+
+
+if __name__ == "__main__":
+    digit = [logic.constant(label=f"digit_{i}") for i in range(4)]
+    segments = decode_7_segment(digit)
+    circuit = logic.get_circuit(digit, segments)
+
+    for val in range(10):
+        _set_digit_constants(digit, val)
+        logic.converge(circuit)
+
+        s = format_7_segment([seg.get_output_state() for seg in segments])
+        print(val)
+        print(s)
