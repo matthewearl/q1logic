@@ -1,27 +1,71 @@
 from . import bcd
 from . import logic
 
-def _set_digit_constants(digit, int_):
+def _set_digit_constants(digit, val):
     for idx, gate in enumerate(digit):
-        gate.output_state = (int_ & (1 << idx)) != 0
+        gate.output_state = (val & (1 << idx)) != 0
+
+
+def _set_digits_constants(digits, val):
+    for idx, digit in enumerate(digits):
+        digit_val = val % 10
+        val = val // 10
+        _set_digit_constants(digit, digit_val)
+
+
+def _decode_bcd(digits):
+    val = 0
+    for digit in reversed(digits):
+        val *= 10
+        val += logic.decode_number(digit)
+    return val
 
 
 def test_add_digit():
     digit1 = [logic.constant(label=f"digit1_{i}") for i in range(4)]
     digit2 = [logic.constant(label=f"digit2_{i}") for i in range(4)]
     sum_digit, carry = bcd.bcd_add_digit(digit1, digit2)
-
     in_gates = digit1 + digit2
     circuit = logic.get_circuit(in_gates, sum_digit + [carry])
 
-    for int1 in range(10):
-        for int2 in range(10):
-            _set_digit_constants(digit1, int1)
-            _set_digit_constants(digit2, int2)
+    for val1 in range(10):
+        for val2 in range(10):
+            _set_digit_constants(digit1, val1)
+            _set_digit_constants(digit2, val2)
             logic.converge(circuit)
 
-            sum_int = logic.decode_number(sum_digit)
+            sum_val = logic.decode_number(sum_digit)
             if carry.get_output_state():
-                sum_int += 10
-            assert sum_int == int1 + int2
+                sum_val += 10
+            assert sum_val == val1 + val2
 
+
+def test_bcd_ripple_carry_adder():
+    digits1 = [
+        [logic.constant(label=f"digits1_{i}") for i in range(4)]
+        for j in range(3)
+    ]
+    digits2 = [
+        [logic.constant(label=f"digits2_{i}") for i in range(4)]
+        for j in range(3)
+    ]
+    test_cases = [
+        [0, 0], [1, 0], [9, 1], [123, 5], [123, 10], [123, 123], [999, 999]
+    ]
+    test_cases.extend([[b, a] for a, b in test_cases])
+
+    sum_digits, carry = bcd.bcd_ripple_carry_adder(digits1, digits2)
+    in_gates = [gate for gates in digits1 + digits2 for gate in gates]
+    out_gates = [gate for gates in sum_digits for gate in gates]
+    circuit = logic.get_circuit(in_gates, out_gates)
+
+    for val1, val2 in test_cases:
+        _set_digits_constants(digits1, val1)
+        _set_digits_constants(digits2, val2)
+        logic.converge(circuit)
+
+        sum_val = _decode_bcd(sum_digits)
+        if carry.get_output_state():
+            sum_val += 1000
+
+        assert sum_val == val1 + val2

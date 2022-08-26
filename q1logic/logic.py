@@ -213,10 +213,9 @@ def full_adder(c1, c2, c3):
     return [n8, n9]
 
 
-def ripple_carry_add(num1, num2):
+def ripple_carry_add(num1, num2, carry=None):
     assert len(num1) > 0 and len(num2) > 0, "not supported"
 
-    carry = None
     out = []
     min_len = min(len(num1), len(num2))
     for bit1, bit2 in zip(num1[:min_len], num2[:min_len]):
