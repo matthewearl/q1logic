@@ -1,13 +1,14 @@
 import dataclasses
 import functools
 import io
+import json
 import logging
 import operator
 from typing import Dict, List, Any, Optional
 
 import numpy as np
 
-from . import logic, gol
+from . import logic, gol, bcd
 
 
 logger = logging.getLogger(__name__)
@@ -38,20 +39,23 @@ def _encode_vec(vec):
 
 @dataclasses.dataclass
 class Brush:
-    mins: np.ndarray
-    maxs: np.ndarray
+    planes: np.ndarray
     texture: str
     comment: Optional[str] = None
 
-    def write(self, f):
+    @classmethod
+    def from_bbox(cls, mins: np.ndarray, maxs: np.ndarray, *args, **kwargs):
         planes = np.concatenate([
-            self.mins + bbox_min_planes,
-            self.maxs + bbox_max_planes,
+            mins + bbox_min_planes,
+            maxs + bbox_max_planes,
         ])
+        return cls(planes, *args, **kwargs)
+
+    def write(self, f):
         if self.comment is not None:
             f.write(f'// {self.comment}\n')
         f.write('{\n')
-        for plane in planes:
+        for plane in self.planes:
             f.write(' '.join('( ' + ' '.join(str(x) for x in vert) + ' )'
                                for vert in plane))
             f.write(f' {self.texture} 0 0 0 1 1\n')
@@ -99,15 +103,15 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             'targetname': name,
         },
         [
-            Brush(np.array([0, 0, 0]) + origin,
-                  np.array([128, 16, 128]) + origin,
-                  "cop1_1", "front"),
-            Brush(np.array([64 - 24, 16, 16]) + origin,
-                  np.array([64 + 24, 80, 32]) + origin,
-                  "cop1_1", "bottom"),
-            Brush(np.array([64 - 24, 64, 32]) + origin,
-                  np.array([64 + 24, 80, 64]) + origin,
-                  "cop1_1", "back"),
+            Brush.from_bbox(np.array([0, 0, 0]) + origin,
+                            np.array([128, 16, 128]) + origin,
+                            "cop1_1", "front"),
+            Brush.from_bbox(np.array([64 - 24, 16, 16]) + origin,
+                            np.array([64 + 24, 80, 32]) + origin,
+                            "cop1_1", "bottom"),
+            Brush.from_bbox(np.array([64 - 24, 64, 32]) + origin,
+                            np.array([64 + 24, 80, 64]) + origin,
+                            "cop1_1", "back"),
         ],
         "sled"
     )
@@ -120,9 +124,9 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             'target': name,
         },
         [
-            Brush(np.array([0, 12, 0]) + origin,
-                  np.array([128, 16, 128]) + origin,
-                  "cop1_1", "front"),
+            Brush.from_bbox(np.array([0, 12, 0]) + origin,
+                            np.array([128, 16, 128]) + origin,
+                            "cop1_1", "front"),
         ],
         "target"
     )
@@ -134,9 +138,9 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             'speed': 0,
         },
         [
-            Brush(np.array([48, 16, 32]) + origin,
-                  np.array([80, 128, 64]) + origin,
-                  "cop1_1"),
+            Brush.from_bbox(np.array([48, 16, 32]) + origin,
+                            np.array([80, 128, 64]) + origin,
+                            "cop1_1"),
         ]
     )
     door = Entity(
@@ -148,9 +152,9 @@ def create_input(origin: np.ndarray, name: str, target: str) -> List[Entity]:
             'target': target,
         },
         [
-            Brush(np.array([60, 128, 48]) + origin,
-                  np.array([68, 136, 80]) + origin,
-                  "*lava1"),
+            Brush.from_bbox(np.array([60, 128, 48]) + origin,
+                            np.array([68, 136, 80]) + origin,
+                            "*lava1"),
         ]
     )
     monster = Entity(
@@ -174,19 +178,19 @@ def create_output(origin: np.ndarray, name: str):
             'targetname': name,
         },
         [
-            Brush(np.array([0, 0, 0]) + origin,
-                  np.array([128, 128, 128]) + origin,
-                  "cop1_1"),
+            Brush.from_bbox(np.array([0, 0, 0]) + origin,
+                            np.array([128, 128, 128]) + origin,
+                            "cop1_1"),
         ],
         "output"
     )]
 
 
-def create_input_array(grid_origin, grid_size, targets: List[List[str]]):
+def create_input_array(grid_origin, grid_shape, targets: List[List[str]]):
     entities = []
     input_spacing = 128 + 8
-    for target_row, y in zip(targets, range(grid_size)):
-        for target, x in zip(target_row, range(grid_size)):
+    for target_row, y in zip(targets, range(grid_shape[0])):
+        for target, x in zip(target_row, range(grid_shape[1])):
             input_origin = np.array([input_spacing * x,
                                      0,
                                      input_spacing * y]) + grid_origin
@@ -195,9 +199,9 @@ def create_input_array(grid_origin, grid_size, targets: List[List[str]]):
                                          target))
 
     brushes = [
-        Brush(np.array([0, 4, 0]) + grid_origin,
-              np.array([grid_size * input_spacing, 8,
-                        grid_size * input_spacing]) + grid_origin,
+        Brush.from_bbox(np.array([0, 4, 0]) + grid_origin,
+                        np.array([grid_shape[1] * input_spacing, 8,
+                                  grid_shape[0] * input_spacing]) + grid_origin,
               "*water0", "input curtain")
     ]
     return entities, brushes
@@ -223,7 +227,7 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
                     'speed': 500,
                     'targetname': input_name
                 },
-                [Brush(input_origin, input_origin + 64, "cop1_1")]
+                [Brush.from_bbox(input_origin, input_origin + 64, "cop1_1")]
             ),
             # monster
             Entity(
@@ -251,7 +255,7 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
                 'wait': 0.5,
             },
             [
-                Brush(np.array([monster_min, 64, 176]) + origin,
+                Brush.from_bbox(np.array([monster_min, 64, 176]) + origin,
                       np.array([monster_max, 72, 208]) + origin,
                       "*lava1")
             ]
@@ -265,7 +269,7 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
                 'speed': 0,
             },
             [
-                Brush(np.array([monster_min, 16, 64]) + origin,
+                Brush.from_bbox(np.array([monster_min, 16, 64]) + origin,
                       np.array([monster_max, 48, 196]) + origin,
                       "*lava1")
             ]
@@ -286,12 +290,39 @@ def create_output_array(grid_origin, grid_size, names):
             entities.extend(create_output(input_origin, name))
 
     brushes = [
-        Brush(np.array([0, 4, 0]) + grid_origin,
+        Brush.from_bbox(np.array([0, 4, 0]) + grid_origin,
               np.array([grid_size * input_spacing, 8,
                         grid_size * input_spacing]) + grid_origin,
               "*water0", "output curtain")
     ]
     return entities, brushes
+
+
+def create_7_segment_display(origin, names):
+    if len(names) != 7:
+        raise ValueError("Expected 7 names")
+    with open('segments.json') as f:
+        data = json.load(f)
+
+    entities = [
+        Entity(
+            {
+                'classname': 'func_door',
+                'angle': 90,
+                'lip': 0,
+                'wait': 1.1,
+                'spawnflags': 5,
+                'targetname': name,
+            },
+            [Brush(origin + np.array(segment_planes), "*lava1")],
+            f"segment {label}",
+        )
+        for label, name, segment_planes
+        in zip("abcdefg", names, data['segments'])
+    ]
+    back_brush = Brush(origin + np.array(data['back']), 'cop1_1')
+
+    return entities, [back_brush]
 
 
 def _reshape_list(l, shape):
@@ -304,14 +335,7 @@ def _reshape_list(l, shape):
     return l
 
 
-def map_from_circuit(inputs, outputs, circuit):
-    input_grid_size = len(inputs)
-    if not all(len(input_row) == input_grid_size for input_row in inputs):
-        raise ValueError("inputs must be square")
-    output_grid_size = len(outputs)
-    if not all(len(output_row) == output_grid_size for output_row in outputs):
-        raise ValueError("outputs must be square")
-
+def map_from_circuit(in_gates, out_gates, circuit):
     gate_ids = {
         gate: f"gate_{i}" for i, gate in enumerate(circuit)
     }
@@ -321,26 +345,13 @@ def map_from_circuit(inputs, outputs, circuit):
 
     # Create inputs
     input_targets = [
-        [gate_ids[in_gate] for in_gate in input_row]
-        for input_row in inputs
+        gate_ids[in_gate] for in_gate in in_gates
     ]
-    input_entities, input_brushes = create_input_array(np.array([0, 0, 0]),
-                                                       input_grid_size,
-                                                       input_targets)
-    world_brushes.extend(input_brushes)
-    entities.extend(input_entities)
 
     # Create outputs
     output_names = [
-        [gate_ids[out_gate] for out_gate in output_row]
-        for output_row in outputs
+        gate_ids[out_gate] for out_gate in out_gates
     ]
-    output_entities, output_brushes = create_output_array(
-        np.array([136 * (input_grid_size + 1), 0, 0]), output_grid_size,
-        output_names
-    )
-    world_brushes.extend(output_brushes)
-    entities.extend(output_entities)
 
     # Map from gate inputs to the gates that connect to them.
     prev_gate = {
@@ -379,29 +390,31 @@ def map_from_circuit(inputs, outputs, circuit):
         world_brushes
     )
     entities.insert(0, world_entity)
-    return world_brushes, entities
+    return entities, world_brushes, input_targets, output_names
 
 
 def create_map_entrypoint():
     logging.basicConfig(level=logging.INFO)
 
-    grid_size = 5
-    player_origin = np.array([136 * (grid_size + 0.5),
-                              -128 * grid_size,
-                              68 * grid_size])
+    player_origin = np.array([768, -1024, 0])
 
-    inputs = [
-        [logic.constant() for j in range(grid_size)]
-        for i in range(grid_size)
-    ]
-    in_gates = [gate for input_row in inputs for gate in input_row]
-    outputs = gol.gol_step(inputs)
-    out_gates = [gate for output_row in outputs for gate in output_row]
+    in_gates = [logic.constant() for j in range(4)]
+    out_gates = bcd.decode_7_segment(in_gates)
     circuit = logic.get_circuit(in_gates, out_gates)
     logger.info('Number of gates: %s', len(circuit))
 
-    circuit_brushes, circuit_entities = map_from_circuit(
-        inputs, outputs, circuit
+    circuit_entities, circuit_brushes, input_targets, output_names = (
+        map_from_circuit(
+            in_gates, out_gates, circuit
+        )
+    )
+
+    input_entities, input_brushes = create_input_array(
+        np.array([0, 0, 0]), (1, 4), [input_targets]
+    )
+
+    output_entities, output_brushes = create_7_segment_display(
+        np.array([768, 0, 0]), output_names
     )
 
     entities = [
@@ -412,10 +425,10 @@ def create_map_entrypoint():
                 'angle': 0,
             },
             [
-                Brush(np.array([-32, -32, -40]) + player_origin,
-                      np.array([32, 32, -24]) + player_origin,
-                      "cop1_1", "platform"),
-            ] + circuit_brushes
+                Brush.from_bbox(np.array([-32, -32, -40]) + player_origin,
+                                np.array([32, 32, -24]) + player_origin,
+                                "cop1_1", "platform"),
+            ] + circuit_brushes + input_brushes + output_brushes
         ),
         Entity(
             {
@@ -425,7 +438,7 @@ def create_map_entrypoint():
             },
             []
         ),
-    ] + circuit_entities
+    ] + circuit_entities + input_entities + output_entities
 
     with open('test.map', 'w') as f:
         Map(entities).write(f)
