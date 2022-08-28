@@ -186,7 +186,8 @@ def create_output(origin: np.ndarray, name: str):
     )]
 
 
-def create_input_array(grid_origin, grid_shape, targets: List[List[str]]):
+def create_input_array(grid_origin, grid_shape, targets: List[List[str]],
+                       name_prefix: str = "input"):
     entities = []
     input_spacing = 128 + 8
     for target_row, y in zip(targets, range(grid_shape[0])):
@@ -195,7 +196,7 @@ def create_input_array(grid_origin, grid_shape, targets: List[List[str]]):
                                      0,
                                      input_spacing * y]) + grid_origin
             entities.extend(create_input(input_origin,
-                                         f"input_{x}_{y}",
+                                         f"{name_prefix}_{x}_{y}",
                                          target))
 
     brushes = [
@@ -330,8 +331,9 @@ def _reshape_list(l, shape):
         raise ValueError(f"List of length {len(l)} cannot be reshaped to "
                          f"{shape}")
 
-    for size in reversed(shape):
+    for size in reversed(shape[1:]):
         l = [l[i:i + size] for i in range(0, len(l), size)]
+    assert len(l) == shape[0]
     return l
 
 
@@ -396,28 +398,95 @@ def map_from_circuit(in_gates, out_gates, circuit):
 def create_map_entrypoint():
     logging.basicConfig(level=logging.INFO)
 
-    player_origin = np.array([768, -1024, 0])
+    num_digits = 2
 
-    in_gates = [logic.constant() for j in range(4)]
-    out_gates = bcd.decode_7_segment(in_gates)
+    # Make the circuit. inputs[i][j][k] is the k'th bit of the j'th digit of
+    # the i'th summand.
+    inputs = [
+        [
+            [logic.constant() for _ in range(4)]
+            for _ in range(num_digits)
+        ]
+        for _ in range(2)
+    ]
+    in_gates = [in_gate
+                for summand_inputs in inputs
+                for digit_inputs in summand_inputs
+                for in_gate in digit_inputs]
+    sum_digits, carry = bcd.bcd_ripple_carry_adder(inputs[0], inputs[1])
+    summand_segments = [
+        [
+            bcd.decode_7_segment(inputs[summand_idx][digit_idx])
+            for digit_idx in range(num_digits)
+        ]
+        for summand_idx in range(2)
+    ]
+    sum_segments = [bcd.decode_7_segment(sum_digit) for sum_digit in sum_digits]
+    out_gates = (
+        [out_gate
+         for summand_idx in range(2)
+         for digit_idx in range(num_digits)
+         for out_gate in summand_segments[summand_idx][digit_idx]]
+        + [out_gate
+           for sum_segment in sum_segments
+           for out_gate in sum_segment]
+    )
+    assert len(out_gates) == 7 * 3 * num_digits
     circuit = logic.get_circuit(in_gates, out_gates)
     logger.info('Number of gates: %s', len(circuit))
 
-    circuit_entities, circuit_brushes, input_targets, output_names = (
+    # Make the gates.
+    entities, brushes, input_targets, output_names = (
         map_from_circuit(
             in_gates, out_gates, circuit
         )
     )
+    input_targets = _reshape_list(input_targets, (2, num_digits, 4))
+    summand_output_names = _reshape_list(output_names[:2 * 7 * num_digits],
+                                         (2, num_digits, 7))
+    sum_output_names = _reshape_list(output_names[2 * 7 * num_digits:],
+                                     (num_digits, 7))
 
-    input_entities, input_brushes = create_input_array(
-        np.array([0, 0, 0]), (1, 4), [input_targets]
-    )
+    # Make the summand inputs and displays.
+    digit_spacing = [600, 350]
+    for summand_idx in range(2):
+        # digit is 316 wide, 504 high
+        z = (2 - summand_idx) * digit_spacing[0]
 
-    output_entities, output_brushes = create_7_segment_display(
-        np.array([768, 0, 0]), output_names
-    )
+        input_entities, input_brushes = create_input_array(
+            np.array([-136 * num_digits, 0, z]), (4, num_digits),
+            [
+                [
+                    input_targets[summand_idx][digit_idx][bit_idx]
+                    for digit_idx in range(num_digits)
+                ]
+                for bit_idx in range(4)
+            ],
+            name_prefix=f"input{summand_idx}"
+        )
+        entities.extend(input_entities)
+        brushes.extend(input_brushes)
 
-    entities = [
+        for digit_idx in range(num_digits):
+            output_entities, output_brushes = create_7_segment_display(
+                np.array([digit_spacing[1] * digit_idx, 0, z]),
+                summand_output_names[summand_idx][digit_idx]
+            )
+            entities.extend(output_entities)
+            brushes.extend(output_brushes)
+
+    # Make the sum display.
+    for digit_idx in range(num_digits):
+        output_entities, output_brushes = create_7_segment_display(
+            np.array([digit_spacing[1] * digit_idx, 0, 0]),
+            sum_output_names[digit_idx]
+        )
+        entities.extend(output_entities)
+        brushes.extend(output_brushes)
+
+    # Put everything together.
+    player_origin = np.array([0, -512 * num_digits, 0])
+    entities.extend([
         Entity(
             {
                 'classname': 'worldspawn',
@@ -428,7 +497,7 @@ def create_map_entrypoint():
                 Brush.from_bbox(np.array([-32, -32, -40]) + player_origin,
                                 np.array([32, 32, -24]) + player_origin,
                                 "cop1_1", "platform"),
-            ] + circuit_brushes + input_brushes + output_brushes
+            ] + brushes
         ),
         Entity(
             {
@@ -438,8 +507,7 @@ def create_map_entrypoint():
             },
             []
         ),
-    ] + circuit_entities + input_entities + output_entities
-
+    ])
     with open('test.map', 'w') as f:
         Map(entities).write(f)
 
