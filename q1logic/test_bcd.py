@@ -50,7 +50,7 @@ def test_bcd_ripple_carry_adder():
         for j in range(3)
     ]
     test_cases = [
-        [0, 0], [1, 0], [9, 1], [123, 5], [123, 10], [123, 123], [999, 999]
+        [0, 0], [1, 0], [9, 1], [123, 5], [123, 10], [123, 123], [999, 999],
     ]
     test_cases.extend([[b, a] for a, b in test_cases])
 

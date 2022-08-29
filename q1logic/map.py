@@ -363,7 +363,7 @@ def map_from_circuit(in_gates, out_gates, circuit):
     }
 
     # Create nand gates
-    origin = np.array([0, 512, 0])
+    origin = np.array([-2048, 512, -2048])
     nand_gates = [gate for gate in circuit if isinstance(gate, logic.NandGate)]
     for gate in nand_gates:
         input_names = [
@@ -378,9 +378,13 @@ def map_from_circuit(in_gates, out_gates, circuit):
         entities.extend(nand_entities)
 
         origin = origin + np.array([256 * len(input_names), 0, 0])
-        if origin[0] > 8192:
-            origin[0] = 0
+        if origin[0] > 2048:
+            origin[0] = -2048
             origin[2] += 256
+
+            if origin[2] > 2048:
+                origin[2] = -2048
+                origin[1] += 256
 
     # Create the map object
     world_entity = Entity(
@@ -457,7 +461,7 @@ def create_map_entrypoint():
             np.array([-136 * num_digits, 0, z]), (4, num_digits),
             [
                 [
-                    input_targets[summand_idx][digit_idx][bit_idx]
+                    input_targets[summand_idx][-digit_idx - 1][bit_idx]
                     for digit_idx in range(num_digits)
                 ]
                 for bit_idx in range(4)
@@ -470,7 +474,7 @@ def create_map_entrypoint():
         for digit_idx in range(num_digits):
             output_entities, output_brushes = create_7_segment_display(
                 np.array([digit_spacing[1] * digit_idx, 0, z]),
-                summand_output_names[summand_idx][digit_idx]
+                summand_output_names[summand_idx][-digit_idx - 1]
             )
             entities.extend(output_entities)
             brushes.extend(output_brushes)
@@ -479,14 +483,14 @@ def create_map_entrypoint():
     for digit_idx in range(num_digits):
         output_entities, output_brushes = create_7_segment_display(
             np.array([digit_spacing[1] * digit_idx, 0, 0]),
-            sum_output_names[digit_idx]
+            sum_output_names[-digit_idx - 1]
         )
         entities.extend(output_entities)
         brushes.extend(output_brushes)
 
     # Put everything together.
-    player_origin = np.array([0, -512 * num_digits, 0])
-    entities.extend([
+    player_origin = np.array([0, -512 * num_digits, 2 * digit_spacing[0]])
+    entities = [
         Entity(
             {
                 'classname': 'worldspawn',
@@ -503,11 +507,11 @@ def create_map_entrypoint():
             {
                 'classname': 'info_player_start',
                 'angle': 90,
-                'origin': _encode_vec(player_origin)
+                'origin': _encode_vec(player_origin + np.array([0, 0, 8]))
             },
             []
         ),
-    ])
+    ] + entities
     with open('test.map', 'w') as f:
         Map(entities).write(f)
 
