@@ -58,7 +58,8 @@ class Brush:
         for plane in self.planes:
             f.write(' '.join('( ' + ' '.join(str(x) for x in vert) + ' )'
                                for vert in plane))
-            f.write(f' {self.texture} 0 0 0 1 1\n')
+            scale = 100 if self.texture == '*lava1' else 1
+            f.write(f' {self.texture} 0 0 0 {scale} {scale}\n')
         f.write('}\n')
 
 
@@ -265,8 +266,8 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
         Entity(
             {
                 'classname': 'trigger_monsterjump',
-                'angle': -2,
-                'height': 32,
+                'angle': -1,
+                'height': 100,
                 'speed': 0,
             },
             [
@@ -402,7 +403,7 @@ def map_from_circuit(in_gates, out_gates, circuit):
 def create_map_entrypoint():
     logging.basicConfig(level=logging.INFO)
 
-    num_digits = 2
+    num_digits = 4
 
     # Make the circuit. inputs[i][j][k] is the k'th bit of the j'th digit of
     # the i'th summand.
