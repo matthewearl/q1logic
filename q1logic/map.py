@@ -226,7 +226,7 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
                     'classname': 'func_door',
                     'angle': angle,
                     'lip': 0,
-                    'speed': 500,
+                    'speed': 90,
                     'targetname': input_name
                 },
                 [Brush.from_bbox(input_origin, input_origin + 64, "cop1_1")]
