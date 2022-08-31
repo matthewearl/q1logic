@@ -201,7 +201,7 @@ def create_input_array(grid_origin, grid_shape, targets: List[List[str]],
                                          target))
 
     brushes = [
-        Brush.from_bbox(np.array([0, 4, 0]) + grid_origin,
+        Brush.from_bbox(np.array([-8, 4, -8]) + grid_origin,
                         np.array([grid_shape[1] * input_spacing, 8,
                                   grid_shape[0] * input_spacing]) + grid_origin,
               "*water0", "input curtain")
@@ -259,7 +259,7 @@ def create_nand_gate(input_names, target, origin, *, inverted_inputs=()):
             [
                 Brush.from_bbox(np.array([monster_min, 64, 176]) + origin,
                       np.array([monster_max, 72, 208]) + origin,
-                      "*lava1")
+                      "*water0")
             ]
         ),
         # jump
@@ -306,6 +306,10 @@ def create_7_segment_display(origin, names):
     with open('segments.json') as f:
         data = json.load(f)
 
+    scale = 536 / 512
+
+    origin = origin + np.array([0, 0, 33.5])
+
     entities = [
         Entity(
             {
@@ -316,13 +320,13 @@ def create_7_segment_display(origin, names):
                 'spawnflags': 5,
                 'targetname': name,
             },
-            [Brush(origin + np.array(segment_planes), "*lava1")],
+            [Brush(origin + scale * np.array(segment_planes), "*lava1")],
             f"segment {label}",
         )
         for label, name, segment_planes
         in zip("abcdefg", names, data['segments'])
     ]
-    back_brush = Brush(origin + np.array(data['back']), 'cop1_1')
+    back_brush = Brush(origin + scale * np.array(data['back']), 'cop1_1')
 
     return entities, [back_brush]
 
@@ -364,7 +368,8 @@ def map_from_circuit(in_gates, out_gates, circuit):
     }
 
     # Create nand gates
-    origin = np.array([-2048, 512, -2048])
+    box_size = 1024
+    origin = np.array([-box_size, 512, -box_size])
     nand_gates = [gate for gate in circuit if isinstance(gate, logic.NandGate)]
     for gate in nand_gates:
         input_names = [
@@ -379,13 +384,14 @@ def map_from_circuit(in_gates, out_gates, circuit):
         entities.extend(nand_entities)
 
         origin = origin + np.array([256 * len(input_names), 0, 0])
-        if origin[0] > 2048:
-            origin[0] = -2048
+        if origin[0] > box_size:
+            origin[0] = -box_size
             origin[2] += 256
 
-            if origin[2] > 2048:
-                origin[2] = -2048
+            if origin[2] > box_size:
+                origin[2] = -box_size
                 origin[1] += 256
+        print(origin[1] - 512)
 
     # Create the map object
     world_entity = Entity(
@@ -453,13 +459,14 @@ def create_map_entrypoint():
                                      (num_digits, 7))
 
     # Make the summand inputs and displays.
+    offset = np.array([-1024, 0, -768])
     digit_spacing = [600, 350]
     for summand_idx in range(2):
         # digit is 316 wide, 504 high
         z = (2 - summand_idx) * digit_spacing[0]
 
         input_entities, input_brushes = create_input_array(
-            np.array([-136 * num_digits, 0, z]), (4, num_digits),
+            offset + np.array([256 + digit_spacing[1] * num_digits, 0, z]), (4, num_digits),
             [
                 [
                     input_targets[summand_idx][-digit_idx - 1][bit_idx]
@@ -474,7 +481,7 @@ def create_map_entrypoint():
 
         for digit_idx in range(num_digits):
             output_entities, output_brushes = create_7_segment_display(
-                np.array([digit_spacing[1] * digit_idx, 0, z]),
+                offset + np.array([digit_spacing[1] * digit_idx, 0, z]),
                 summand_output_names[summand_idx][-digit_idx - 1]
             )
             entities.extend(output_entities)
@@ -483,14 +490,14 @@ def create_map_entrypoint():
     # Make the sum display.
     for digit_idx in range(num_digits):
         output_entities, output_brushes = create_7_segment_display(
-            np.array([digit_spacing[1] * digit_idx, 0, 0]),
+            offset + np.array([digit_spacing[1] * digit_idx, 0, 0]),
             sum_output_names[-digit_idx - 1]
         )
         entities.extend(output_entities)
         brushes.extend(output_brushes)
 
     # Put everything together.
-    player_origin = np.array([0, -512 * num_digits, 2 * digit_spacing[0]])
+    player_origin = offset + np.array([0, -512 * num_digits, 2 * digit_spacing[0]])
     entities = [
         Entity(
             {
