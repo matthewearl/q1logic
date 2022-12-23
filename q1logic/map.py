@@ -540,6 +540,6 @@ def create_map_entrypoint():
             []
         ),
     ] + entities
-    with open('test.map', 'w') as f:
+    with open('bcdadder.map', 'w') as f:
         Map(entities).write(f)
 
