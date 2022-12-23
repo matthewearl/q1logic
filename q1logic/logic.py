@@ -25,7 +25,6 @@ import dataclasses
 import itertools
 from typing import Sequence
 
-import graphviz
 
 
 @dataclasses.dataclass
@@ -264,6 +263,8 @@ def mux(select, a, b):
 
 
 def circuit_to_dot(circuit):
+    import graphviz
+
     dot = graphviz.Digraph('circuit')
     ids = {gate: f'g{i}' for i, gate in enumerate(circuit)}
     for gate in circuit:

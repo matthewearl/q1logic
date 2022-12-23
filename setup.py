@@ -11,7 +11,7 @@ setup(name='q1logic',
           ]
       },
       description='Q1 logic',
-      install_requires=[],
+      install_requires=['numpy'],
       author='Matt Earl',
       packages=['q1logic'])
 
